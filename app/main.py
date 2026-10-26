@@ -80,7 +80,7 @@ def login(body: Login, request: Request, response: Response):
         attempt = c.execute('SELECT * FROM attempts WHERE ip=?', (ip,)).fetchone()
         if attempt and attempt['count'] >= 8:
             raise HTTPException(429, 'Trop de tentatives. Réessayez dans 15 minutes.')
-        c.execute('INSERT INTO attempts VALUES (?,1,?) ON CONFLICT(ip) DO UPDATE SET count=count+1', (ip, now))
+        c.execute('INSERT INTO attempts VALUES (?,1,?) ON CONFLICT(ip) DO UPDATE SET count=attempts.count+1', (ip, now))
         admin = c.execute('SELECT * FROM admin LIMIT 1').fetchone()
     if not admin:
         raise HTTPException(503, 'Compte administrateur à configurer sur le serveur.')

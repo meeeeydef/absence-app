@@ -1,25 +1,40 @@
 import importlib
 import io
-import sqlite3
+import os
+import uuid
+import psycopg
+from psycopg import sql
+from psycopg.conninfo import make_conninfo
 import pytest
 from fastapi.testclient import TestClient
 from openpyxl import Workbook
 
-@pytest.fixture
-def system(tmp_path, monkeypatch):
+@pytest.fixture(params=["sqlite"] + (["postgres"] if os.getenv("TEST_DATABASE_URL") else []))
+def system(tmp_path, monkeypatch, request):
     monkeypatch.setenv('DATA_DIR', str(tmp_path))
     monkeypatch.setenv('COOKIE_SECURE', 'false')
     monkeypatch.delenv('ADMIN_PASSWORD', raising=False)
     monkeypatch.delenv('DATABASE_URL', raising=False)
     monkeypatch.delenv('VERCEL', raising=False)
+    schema = None
+    if request.param == 'postgres':
+        schema = 'test_' + uuid.uuid4().hex
+        with psycopg.connect(os.environ['TEST_DATABASE_URL']) as con:
+            con.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
+        monkeypatch.setenv('DATABASE_URL', make_conninfo(os.environ['TEST_DATABASE_URL'], options='-csearch_path='+schema))
     from app import database
     importlib.reload(database)
     from app import main
     importlib.reload(main)
     main.set_admin('test-admin', 'Strong-test-only-1234')
-    with TestClient(main.app) as client:
-        client.headers['X-App-Request']='1'
-        yield client,main
+    try:
+        with TestClient(main.app) as client:
+            client.headers['X-App-Request']='1'
+            yield client,main
+    finally:
+        if schema:
+            with psycopg.connect(os.environ['TEST_DATABASE_URL']) as con:
+                con.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))
 
 def login(c):
     return c.post('/api/login', json={'username':'test-admin','password':'Strong-test-only-1234'})
@@ -39,8 +54,10 @@ def test_csrf_and_throttling(system):
     c.headers.pop('X-App-Request')
     assert login(c).status_code==403
     c.headers['X-App-Request']='1'
-    for _ in range(8):
+    for attempt in range(1,9):
         assert c.post('/api/login',json={'username':'x','password':'wrong'}).status_code==401
+        with m.connection() as db:
+            assert db.execute('SELECT count FROM attempts').fetchone()['count']==attempt
     assert login(c).status_code==429
 
 def test_students_absences_persistence(system):
@@ -56,9 +73,9 @@ def test_students_absences_persistence(system):
     assert result.status_code==200
     aid=result.json()['id']
     assert c.put('/api/absences/'+aid,json={**a,'status':'yes'}).status_code==200
-    # Actual on-disk record, independent connection.
-    with sqlite3.connect(m.DB) as db:
-        assert db.execute('SELECT status FROM absences').fetchone()[0]=='yes'
+    # Persisted record through an independent connection, on either backend.
+    with m.connection() as db:
+        assert db.execute('SELECT status FROM absences').fetchone()['status']=='yes'
     assert c.get('/api/data').json()['abs'][0]['status']=='yes'
     assert c.delete('/api/students/001A').status_code==200
     assert c.get('/api/data').json()=={'students':[],'abs':[]}
