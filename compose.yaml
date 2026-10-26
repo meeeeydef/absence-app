@@ -1,0 +1,20 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      DATA_DIR: /data
+      COOKIE_SECURE: "true"
+    volumes:
+      - absence_data:/data
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  absence_data:

@@ -1,0 +1,9 @@
+data/
+tests/
+.git/
+.env*
+*.xls
+*.xlsx
+*.sqlite*
+__pycache__/
+.pytest_cache/

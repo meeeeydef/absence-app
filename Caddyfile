@@ -1,0 +1,4 @@
+# Remplacer par le domaine du serveur. Caddy s’installe sur la VM.
+absences.votre-etablissement.ma {
+    reverse_proxy 127.0.0.1:8000
+}
