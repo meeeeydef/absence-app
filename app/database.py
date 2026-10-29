@@ -17,7 +17,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS one_admin ON admin ((1));
 CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, expires BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS attempts (ip TEXT PRIMARY KEY, count INTEGER NOT NULL, since BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, nom TEXT NOT NULL, prenom TEXT NOT NULL, groupe TEXT NOT NULL DEFAULT '', site TEXT NOT NULL DEFAULT '');
-CREATE TABLE IF NOT EXISTS absences (id TEXT PRIMARY KEY, sid TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE, week TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('yes','no')), note TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS absences (id TEXT PRIMARY KEY, sid TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE, week TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('yes','no')), note TEXT NOT NULL DEFAULT '', quantity INTEGER NOT NULL DEFAULT 1 CHECK(quantity BETWEEN 1 AND 1000));
 CREATE INDEX IF NOT EXISTS abs_week ON absences(week);
 """
 
@@ -62,6 +62,10 @@ def initialize():
                 c.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS site TEXT NOT NULL DEFAULT ''")
             elif 'site' not in [r['name'] for r in c.execute('PRAGMA table_info(students)')]:
                 c.execute("ALTER TABLE students ADD COLUMN site TEXT NOT NULL DEFAULT ''")
+            if URL:
+                c.execute('ALTER TABLE absences ADD COLUMN IF NOT EXISTS quantity INTEGER NOT NULL DEFAULT 1 CHECK(quantity BETWEEN 1 AND 1000)')
+            elif 'quantity' not in [r['name'] for r in c.execute('PRAGMA table_info(absences)')]:
+                c.execute('ALTER TABLE absences ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1 CHECK(quantity BETWEEN 1 AND 1000)')
             if os.getenv('ADMIN_PASSWORD') and not c.execute('SELECT 1 FROM admin').fetchone():
                 import hashlib,secrets
                 password=os.environ['ADMIN_PASSWORD'];username=os.getenv('ADMIN_USERNAME','admin').strip()

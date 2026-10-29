@@ -128,3 +128,43 @@ def test_postgres_query_adapter():
     assert Postgres.sql('SELECT * FROM students WHERE id=?')=='SELECT * FROM students WHERE id=%s'
     assert Postgres.sql('UPDATE students SET nom=:nom WHERE id=:id')=='UPDATE students SET nom=%(nom)s WHERE id=%(id)s'
     assert 'pg_advisory_xact_lock' in Postgres.sql('BEGIN IMMEDIATE')
+
+
+def test_weekly_quantity_create_edit_and_validation(system):
+    c,m=system
+    login(c)
+    c.post('/api/students',json={'id':'W1','nom':'Exemple','prenom':'Test'})
+    body={'sid':'W1','week':'2026-W44','status':'no','quantity':4}
+    r=c.post('/api/absences',json=body)
+    assert r.status_code==200
+    aid=r.json()['id']
+    assert r.json()['quantity']==4
+    assert c.get('/api/data').json()['abs'][0]['quantity']==4
+    assert c.put('/api/absences/'+aid,json={**body,'quantity':7}).status_code==200
+    records=c.get('/api/data').json()['abs']
+    assert len(records)==1 and records[0]['quantity']==7
+    for value in [0,-1,1.5,True,1001,'4']:
+        assert c.post('/api/absences',json={**body,'quantity':value}).status_code==422
+    legacy=c.post('/api/absences',json={'sid':'W1','week':'2026-W43','status':'yes'})
+    assert legacy.status_code==200 and legacy.json()['quantity']==1
+
+
+def test_existing_sqlite_absences_get_quantity_one(tmp_path,monkeypatch):
+    import sqlite3
+    monkeypatch.setenv('DATA_DIR',str(tmp_path))
+    monkeypatch.delenv('DATABASE_URL',raising=False)
+    monkeypatch.delenv('ADMIN_PASSWORD',raising=False)
+    monkeypatch.delenv('VERCEL',raising=False)
+    with sqlite3.connect(tmp_path/'absence.sqlite3') as con:
+        con.execute("CREATE TABLE students(id TEXT PRIMARY KEY,nom TEXT,prenom TEXT,groupe TEXT)")
+        con.execute("INSERT INTO students VALUES ('OLD1','Exemple','Test','G1')")
+        con.execute("CREATE TABLE absences(id TEXT PRIMARY KEY,sid TEXT,week TEXT,status TEXT,note TEXT)")
+        con.execute("INSERT INTO absences VALUES ('old','OLD1','2026-W43','yes','Note conservée')")
+    from app import database
+    importlib.reload(database)
+    for _ in range(2):
+        database.initialize()
+    with database.connection() as con:
+        row=dict(con.execute('SELECT * FROM absences').fetchone())
+        assert row['quantity']==1 and row['note']=='Note conservée'
+        assert con.execute('SELECT COUNT(*) AS n FROM absences').fetchone()['n']==1

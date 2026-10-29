@@ -21,7 +21,7 @@ Sous PowerShell, utiliser `$env:COOKIE_SECURE="false"` puis lancer uvicorn sans 
 
 Sans `DATABASE_URL`, SQLite est utilisé dans `data/absence.sqlite3`, uniquement hors Vercel. Avec `DATABASE_URL`, les données sont enregistrées dans PostgreSQL. Les tables sont créées au premier accès. Le mot de passe est haché avec scrypt ; les cookies sont HttpOnly, SameSite et Secure par défaut ; la session expire après 8 h.
 
-Un stagiaire supprimé entraîne la suppression de ses absences après confirmation. Une ligne représente une absence hebdomadaire ; plusieurs lignes sont possibles pour une même personne et semaine. Le format XML `.xls` de l’export interne et les `.xlsx` sont acceptés. Les matricules sont du texte converti en majuscules. Aucun fichier réel ni secret n’est livré dans le code.
+Un stagiaire supprimé entraîne la suppression de ses absences après confirmation. Une saisie indique un nombre entier d’absences (1 à 1 000) pour un stagiaire, une semaine et un statut. Pour des absences mixtes, saisir séparément les nombres justifiés et non justifiés. Modifier une saisie remplace son nombre ; plusieurs saisies s’additionnent. Les anciennes lignes sont conservées et comptent chacune pour 1 ; la migration est automatique au prochain démarrage. Le format XML `.xls` de l’export interne et les `.xlsx` sont acceptés. Les matricules sont du texte converti en majuscules. Aucun fichier réel ni secret n’est livré dans le code.
 
 ## Tests
 

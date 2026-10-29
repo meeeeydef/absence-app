@@ -152,6 +152,7 @@ class Absence(BaseModel):
     sid: str = Field(min_length=1, max_length=50)
     week: str
     status: str
+    quantity: int = Field(default=1, ge=1, le=1000, strict=True)
     note: str = Field(default='', max_length=500)
 
 def validate_abs(body):
@@ -172,7 +173,7 @@ def add_abs(body: Absence, _=Depends(authenticated)):
     d['id'] = secrets.token_hex(16)
     try:
         with connection() as c:
-            c.execute('INSERT INTO absences VALUES (:id,:sid,:week,:status,:note)', d)
+            c.execute('INSERT INTO absences (id,sid,week,status,note,quantity) VALUES (:id,:sid,:week,:status,:note,:quantity)', d)
     except (sqlite3.IntegrityError, psycopg.IntegrityError):
         raise HTTPException(422, 'Élève introuvable.')
     return d
@@ -183,7 +184,7 @@ def update_abs(aid: str, body: Absence, _=Depends(authenticated)):
     d['id'] = aid
     try:
         with connection() as c:
-            if not c.execute('UPDATE absences SET sid=:sid,week=:week,status=:status,note=:note WHERE id=:id', d).rowcount:
+            if not c.execute('UPDATE absences SET sid=:sid,week=:week,status=:status,note=:note,quantity=:quantity WHERE id=:id', d).rowcount:
                 raise HTTPException(404, 'Absence introuvable.')
     except (sqlite3.IntegrityError, psycopg.IntegrityError):
         raise HTTPException(422, 'Élève introuvable.')
